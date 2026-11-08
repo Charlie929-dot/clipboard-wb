@@ -58,7 +58,7 @@ internal sealed class TrayService : IDisposable
             Icon = File.Exists(iconPath)
                 ? new Drawing.Icon(iconPath)
                 : Drawing.SystemIcons.Application,
-            Text = "ClipboardWB · 按住 Ctrl + V 唤出历史",
+            Text = "ClipboardWB · 轻按 Ctrl+V 粘贴 · 长按唤出历史",
             ContextMenuStrip = menu,
             Visible = true
         };

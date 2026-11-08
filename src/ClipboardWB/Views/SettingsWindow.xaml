@@ -95,7 +95,7 @@
                                Foreground="{StaticResource TextPrimary}" />
                     <Grid Margin="0,9,0,0">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="96" />
+                            <ColumnDefinition Width="108" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
@@ -103,19 +103,23 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Text="Ctrl + V" FontFamily="{StaticResource UiFont}"
+                        <TextBlock Grid.Row="0" Text="轻按 Ctrl+V" FontFamily="{StaticResource UiFont}"
                                    FontSize="11.5" Foreground="{StaticResource Accent}" Margin="0,0,0,7" />
-                        <TextBlock Grid.Row="0" Grid.Column="1" Text="唤出历史面板" Style="{StaticResource HintText}" Margin="0,0,0,7" />
-                        <TextBlock Grid.Row="1" Text="↑ / ↓" FontFamily="{StaticResource UiFont}"
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="原生粘贴，和平时完全一样" Style="{StaticResource HintText}" Margin="0,0,0,7" />
+                        <TextBlock Grid.Row="1" Text="长按 Ctrl+V" FontFamily="{StaticResource UiFont}"
                                    FontSize="11.5" Foreground="{StaticResource Accent}" Margin="0,0,0,7" />
-                        <TextBlock Grid.Row="1" Grid.Column="1" Text="在历史中移动选择" Style="{StaticResource HintText}" Margin="0,0,0,7" />
-                        <TextBlock Grid.Row="2" Text="V / Enter" FontFamily="{StaticResource UiFont}"
+                        <TextBlock Grid.Row="1" Grid.Column="1" Text="约 180 ms 后唤出历史面板" Style="{StaticResource HintText}" Margin="0,0,0,7" />
+                        <TextBlock Grid.Row="2" Text="↑ / ↓" FontFamily="{StaticResource UiFont}"
                                    FontSize="11.5" Foreground="{StaticResource Accent}" Margin="0,0,0,7" />
-                        <TextBlock Grid.Row="2" Grid.Column="1" Text="粘贴选中项（1-9 可直接跳转）" Style="{StaticResource HintText}" Margin="0,0,0,7" />
-                        <TextBlock Grid.Row="3" Text="Esc" FontFamily="{StaticResource UiFont}"
+                        <TextBlock Grid.Row="2" Grid.Column="1" Text="在历史中移动选择" Style="{StaticResource HintText}" Margin="0,0,0,7" />
+                        <TextBlock Grid.Row="3" Text="V / Enter" FontFamily="{StaticResource UiFont}"
+                                   FontSize="11.5" Foreground="{StaticResource Accent}" Margin="0,0,0,7" />
+                        <TextBlock Grid.Row="3" Grid.Column="1" Text="粘贴选中项（1-9 可直接跳转）" Style="{StaticResource HintText}" Margin="0,0,0,7" />
+                        <TextBlock Grid.Row="4" Text="Esc" FontFamily="{StaticResource UiFont}"
                                    FontSize="11.5" Foreground="{StaticResource Accent}" />
-                        <TextBlock Grid.Row="3" Grid.Column="1" Text="关闭面板，不影响原剪贴板" Style="{StaticResource HintText}" />
+                        <TextBlock Grid.Row="4" Grid.Column="1" Text="关闭面板，不影响原剪贴板" Style="{StaticResource HintText}" />
                     </Grid>
                 </StackPanel>
 

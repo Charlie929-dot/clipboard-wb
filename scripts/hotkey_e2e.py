@@ -1,7 +1,9 @@
 """End-to-end hotkey test with no third-party packages.
 
 Seeds two clipboard entries, focuses the desktop, then drives the real
-Ctrl+V -> Down -> V flow through SendInput and screenshots each stage.
+hold-Ctrl+V -> Down -> V flow through SendInput and screenshots each stage.
+(A quick tap of Ctrl+V is now a native paste and must NOT open the picker;
+see tap_hold_e2e.py for the tap-vs-hold assertions.)
 """
 from __future__ import annotations
 
@@ -74,8 +76,10 @@ def key(vk: int, up: bool = False) -> None:
 
 
 def combo_ctrl_v() -> None:
+    """Hold Ctrl+V long enough (>180ms) to open the history picker."""
     key(VK_CONTROL)
     key(VK_V)
+    time.sleep(0.32)
     key(VK_V, up=True)
     key(VK_CONTROL, up=True)
 
@@ -94,7 +98,7 @@ def main() -> None:
         time.sleep(0.2)
     print("foreground hwnd:", user32.GetForegroundWindow())
 
-    print("step 1: Ctrl+V should open the picker")
+    print("step 1: holding Ctrl+V should open the picker")
     combo_ctrl_v()
     time.sleep(0.7)
     capture(str(out / "e2e-1-open.png"))

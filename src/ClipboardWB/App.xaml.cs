@@ -65,6 +65,13 @@ public partial class App : System.Windows.Application
         string? root = _demo
             ? Path.Combine(Path.GetTempPath(), "ClipboardWB.Demo")
             : null;
+        // Demo rows have stable hashes, so a persisted copy would otherwise keep
+        // showing stale sample text after the wording changes.
+        if (root is not null)
+        {
+            try { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
+            catch { /* demo data is disposable */ }
+        }
         _store = new HistoryStore(root, _settings.MaxItems);
         _monitor = new ClipboardMonitor();
         _paste = new PasteService();
@@ -73,8 +80,14 @@ public partial class App : System.Windows.Application
         _popup.Bind(_store);
         _popup.ItemChosen += index => { _selected = index; PasteSelected(); };
         _popup.PinToggled += item => _store.TogglePin(item);
-        // Materialize the HWND once so the first popup never pays for window creation.
+        // Materialize the HWND and run the first WPF layout/render off-screen, so
+        // the first held Ctrl+V never stalls the hook behind window creation.
+        // Root starts at Opacity=0, so this warm-up is invisible.
         _ = new System.Windows.Interop.WindowInteropHelper(_popup).EnsureHandle();
+        _popup.Left = -32000;
+        _popup.Top = -32000;
+        _popup.Show();
+        _popup.Hide();
 
         _autoHide = new DispatcherTimer { Interval = TimeSpan.FromSeconds(12) };
         _autoHide.Tick += (_, _) => { _autoHide.Stop(); _popup.HidePopup(); };
@@ -125,7 +138,20 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        _hook = new KeyboardHook { Interceptor = OnKey };
+        _hook = new KeyboardHook
+        {
+            Interceptor = OnKey,
+            PickerOpen = () => _popup?.IsOpen == true
+        };
+        string? keyLog = Environment.GetEnvironmentVariable("CLIPBOARDWB_KEYLOG");
+        if (!string.IsNullOrEmpty(keyLog))
+        {
+            _hook.Trace = line =>
+            {
+                try { File.AppendAllText(keyLog, DateTime.Now.ToString("HH:mm:ss.fff") + " " + line + Environment.NewLine); }
+                catch { /* diagnostics are best effort */ }
+            };
+        }
         try
         {
             _hook.Install();
@@ -147,6 +173,10 @@ public partial class App : System.Windows.Application
 
         switch (info.Action)
         {
+            case KeyAction.CtrlVHold:
+                if (!open) ShowPopup();    // Ctrl+V held past the threshold
+                return true;
+
             case KeyAction.CtrlV:
                 if (!open) ShowPopup();
                 else PasteSelected();
@@ -156,9 +186,6 @@ public partial class App : System.Windows.Application
                 if (!open) return false;   // never break normal typing of the letter v
                 PasteSelected();
                 return true;
-
-            case KeyAction.VRepeat:
-                return open;
 
             case KeyAction.Up:
                 if (!open) return false;
@@ -312,9 +339,9 @@ public partial class App : System.Windows.Application
         {
             Kind = ClipEntryKind.Text,
             Hash = ClipboardItem.ComputeHash("demo-4"),
-            Preview = "按住 Ctrl + V 唤出历史，↑ / ↓ 选择，再按 V 即可粘贴。释放 Ctrl 后面板仍会停留，可用鼠标双击或 1-9 直达。",
-            Detail = "62 字符 · 多行",
-            Text = "按住 Ctrl + V 唤出历史，↑ / ↓ 选择，再按 V 即可粘贴。\n释放 Ctrl 后面板仍会停留，可用鼠标双击或 1-9 直达。"
+            Preview = "轻按 Ctrl+V 就是原生粘贴；长按约 180 ms 唤出历史，↑ / ↓ 选择，再按 V 粘贴。",
+            Detail = "使用说明",
+            Text = "轻按 Ctrl+V 就是原生粘贴；长按约 180 ms 唤出历史，↑ / ↓ 选择，再按 V 粘贴。\n面板松开 Ctrl 后仍会停留，可用鼠标双击或 1-9 直达。"
         });
         _store.Add(new ClipPayload
         {

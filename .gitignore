@@ -12,12 +12,8 @@
 selftest.log
 *.log
 *.tmp
-scripts/e2e-*.png
-scripts/crop-*.png
-scripts/scroll-*.png
-scripts/view-*.png
-scripts/gui-preview.png
-scripts/gui-crop*.png
+scripts/*.png
+scripts/keylog.txt
 
 # python cache (icon + screenshot helpers)
 __pycache__/

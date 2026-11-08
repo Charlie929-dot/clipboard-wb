@@ -30,27 +30,16 @@ internal sealed class PasteService
 
         var inputs = new[]
         {
-            Key(NativeMethods.VK_CONTROL, false),
-            Key(NativeMethods.VK_V, false),
-            Key(NativeMethods.VK_V, true),
-            Key(NativeMethods.VK_CONTROL, true)
+            NativeMethods.MarkedKey(NativeMethods.VK_CONTROL, false),
+            NativeMethods.MarkedKey(NativeMethods.VK_V, false),
+            NativeMethods.MarkedKey(NativeMethods.VK_V, true),
+            NativeMethods.MarkedKey(NativeMethods.VK_CONTROL, true)
         };
         uint sent = NativeMethods.SendInput((uint)inputs.Length, inputs,
                                             Marshal.SizeOf<NativeMethods.INPUT>());
         if (sent != inputs.Length)
             Failed?.Invoke("模拟粘贴失败：目标窗口可能以管理员权限运行");
     }
-
-    private static NativeMethods.INPUT Key(int vk, bool up) => new()
-    {
-        type = NativeMethods.INPUT_KEYBOARD,
-        ki = new NativeMethods.KEYBDINPUT
-        {
-            wVk = (ushort)vk,
-            dwFlags = up ? NativeMethods.KEYEVENTF_KEYUP : 0,
-            dwExtraInfo = NativeMethods.SendMagic
-        }
-    };
 
     private static bool WriteClipboard(ClipboardItem item)
     {

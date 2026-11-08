@@ -48,6 +48,18 @@ internal static class NativeMethods
     /// <summary>Marks keystrokes this app synthesizes so the hook ignores them.</summary>
     public static readonly UIntPtr SendMagic = new(0x57424C43); // "WBLC"
 
+    /// <summary>A synthetic keystroke tagged so our own low-level hook lets it through.</summary>
+    public static INPUT MarkedKey(int vk, bool up) => new()
+    {
+        type = INPUT_KEYBOARD,
+        ki = new KEYBDINPUT
+        {
+            wVk = (ushort)vk,
+            dwFlags = up ? KEYEVENTF_KEYUP : 0,
+            dwExtraInfo = SendMagic
+        }
+    };
+
     internal delegate IntPtr LowLevelKeyboardProc(int nCode, IntPtr wParam, IntPtr lParam);
 
     [StructLayout(LayoutKind.Sequential)]
