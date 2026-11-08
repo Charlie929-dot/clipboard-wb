@@ -2,7 +2,7 @@
 
 一个常驻托盘的 Windows 剪贴板历史工具。**按住 `Ctrl` 再按 `V` 唤出历史面板**，`↑` / `↓` 选择，**再按一次 `V` 把选中内容粘贴到当前窗口**。面板是无焦点置顶窗口，不会抢走光标，也不会打断你正在输入的应用。
 
-界面是暗色玻璃卡片：渐入缩放动画、选中项平滑高亮、像素级平滑滚动、亚克力质感的托盘菜单与设置窗口。
+界面是暗色玻璃卡片：渐入缩放动画、选中项平滑高亮、像素级平滑滚动（`↑` / `↓` / 数字直达会自动把选中行滚进视野）、亚克力质感的托盘菜单与设置窗口。
 
 ## 快速开始
 
@@ -49,6 +49,7 @@ src\ClipboardWB\bin\Debug\net10.0-windows\ClipboardWB.exe
 | 粘贴 | `Services/PasteService.cs` | 回写剪贴板后用 `SendInput` 模拟 `Ctrl+V`；注入的按键带 magic 标记，钩子自动放行，不会递归触发自己 |
 | 历史存储 | `Services/HistoryStore.cs` | `ObservableCollection` + 防抖 JSON 持久化；图片单独存 PNG 文件，置顶项不参与淘汰 |
 | 弹窗 | `Views/HistoryWindow.xaml` | `ShowActivated=False` + `WS_EX_NOACTIVATE` + `WS_EX_TOOLWINDOW`，靠光标所在显示器定位并做工作区边界收敛 |
+| 键盘滚动 | `Views/HistoryWindow.xaml.cs`、`Views/SmoothScrollViewer.cs` | 按选中行的实测位置算出目标偏移，再用 `CompositionTarget.Rendering` 缓动滚动；不依赖 `ScrollIntoView`（无焦点窗口 + 物理滚动下它不生效） |
 | 设置 / 托盘 | `Views/SettingsWindow.xaml`、`Services/TrayService.cs` | 暗色自绘菜单、开关、容量滑杆、注册表开机启动项 |
 
 其他细节：单实例 Mutex、剪贴板写入重试、单例生命期内复用 HWND（首次弹出不卡顿）、DWM 暗色模式与圆角、异常兜底日志（`%TEMP%\clipboardwb-error.log`）。
@@ -60,8 +61,19 @@ dist\ClipboardWB.exe --selftest   :: 无界面自检，结果写到 selftest.log
 dist\ClipboardWB.exe --demo       :: 用临时目录的示例数据展示面板，不安装钩子
 ```
 
-自检覆盖：钩子安装/卸载、去重、容量淘汰、JSON 持久化与重载、两个窗口的 XAML 解析。
-`scripts/hotkey_e2e.py` 会真实模拟 `Ctrl+V → ↓ → V` 并截图、校验剪贴板回写。
+自检覆盖：钩子安装/卸载、去重、容量淘汰、JSON 持久化与重载、两个窗口的 XAML 解析，以及**键盘导航滚动**——对 0→3→7→11→15→19→0 的跳转逐一验证算出的目标偏移确实让选中行落在视口内（含从末尾回绕到顶部）。
+
+端到端脚本：
+
+```bat
+python scripts\hotkey_e2e.py            :: 真实模拟 Ctrl+V → ↓ → V，校验剪贴板回写
+python scripts\scroll_e2e.py --seed    :: 预置 18 条编号历史（会备份原 history.json）
+start dist\ClipboardWB.exe
+python scripts\scroll_e2e.py           :: 连按 12 次 ↓、4 次 ↑，逐步截图
+python scripts\scroll_e2e.py --restore :: 恢复原始历史
+```
+
+`scroll_e2e.py` 的截图可用来肉眼确认高亮项始终停在卡片可视区域内。
 
 ## 数据与配置
 
@@ -83,3 +95,4 @@ HKCU\...\CurrentVersion\Run\ClipboardWB  开机启动项
 ## 版本
 
 用 git 管理，提交粒度按「项目骨架 → 核心逻辑 → GUI → 构建与文档」拆分；`git log --oneline` 可查看。
+远程仓库：<https://github.com/Charlie929-dot/clipboard-wb>（私有）。

@@ -14,6 +14,8 @@ selftest.log
 *.tmp
 scripts/e2e-*.png
 scripts/crop-*.png
+scripts/scroll-*.png
+scripts/view-*.png
 scripts/gui-preview.png
 scripts/gui-crop*.png
 

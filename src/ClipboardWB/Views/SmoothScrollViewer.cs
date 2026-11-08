@@ -28,6 +28,15 @@ public sealed class SmoothScrollViewer : ScrollViewer
         }
     }
 
+    /// <summary>Stop an in-flight easing so a fresh selection or a reopen can take over cleanly.</summary>
+    public void CancelAnimation()
+    {
+        if (!_running) return;
+        CompositionTarget.Rendering -= OnRendering;
+        _running = false;
+        _to = VerticalOffset;
+    }
+
     private void OnRendering(object? sender, EventArgs e)
     {
         double t = (DateTime.Now - _start).TotalMilliseconds / Duration.TotalMilliseconds;

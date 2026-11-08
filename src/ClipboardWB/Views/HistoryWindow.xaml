@@ -100,9 +100,7 @@
                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                              ScrollViewer.VerticalScrollBarVisibility="Auto"
                              ScrollViewer.CanContentScroll="False"
-                             VirtualizingPanel.ScrollUnit="Pixel"
-                             VirtualizingPanel.IsVirtualizing="True"
-                             VirtualizingPanel.VirtualizationMode="Recycling"
+                             VirtualizingPanel.IsVirtualizing="False"
                              PreviewMouseLeftButtonDown="List_PreviewMouseLeftButtonDown">
                         <ListBox.Template>
                             <ControlTemplate TargetType="ListBox">

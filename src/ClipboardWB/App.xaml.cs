@@ -209,7 +209,7 @@ public partial class App : System.Windows.Application
         _store?.RefreshIndices();
         _popup.PositionNearCursor();
         _popup.ShowPopup();
-        _popup.SelectIndex(0);
+        _popup.SelectIndex(0, animate: false); // always reopen at the top, no leftover scroll
         RestartAutoHide();
     }
 

@@ -1,4 +1,8 @@
 using System.IO;
+using System.Reflection;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 using ClipboardWB.Models;
 using ClipboardWB.Views;
 
@@ -93,6 +97,68 @@ internal static class SelfTest
             return window is not null;
         });
 
+        // Deterministic regression for keyboard navigation: for every jump, the offset
+        // computed by SelectIndex must actually place that row inside the viewport.
+        // Driving the easing animation here would need a render loop, so we apply the
+        // computed target synchronously and assert against measured row bounds.
+        Check("Up/Down scroll keeps the selected row in view", () =>
+        {
+            string root = Path.Combine(Path.GetTempPath(), "ClipboardWB.SelfTest.Scroll");
+            HistoryStore? scrollStore = null;
+            HistoryWindow? window = null;
+            try
+            {
+                scrollStore = new HistoryStore(root, 20);
+                for (int i = 0; i < 20; i++)
+                    scrollStore.Add(new ClipPayload
+                    {
+                        Kind = ClipEntryKind.Text,
+                        Hash = ClipboardItem.ComputeHash("scroll row " + i),
+                        Preview = "scroll row " + i,
+                        Detail = "12 字符",
+                        Text = "scroll row " + i
+                    });
+
+                window = new HistoryWindow();
+                window.Bind(scrollStore);
+                window.Left = -3000;   // keep the (fully transparent) window off-screen
+                window.Top = -3000;
+                window.Show();
+                window.UpdateLayout();
+
+                var list = window.List;
+                if (FindChild<SmoothScrollViewer>(list) is not { } viewer) return false;
+                if (FindChild<ItemsPresenter>(list) is not { } presenter) return false;
+                if (viewer.ViewportHeight <= 0 || viewer.ScrollableHeight <= 0) return false;
+                if (typeof(HistoryWindow).GetMethod("ComputeTargetOffset",
+                        BindingFlags.Instance | BindingFlags.NonPublic) is not { } compute) return false;
+
+                foreach (int index in new[] { 0, 3, 7, 11, 15, 19, 0 })
+                {
+                    double current = viewer.VerticalOffset;
+                    if (compute.Invoke(window, new object[] { index, viewer, current }) is not double target)
+                        return false;
+                    viewer.ScrollToVerticalOffset(target);
+                    window.UpdateLayout();
+
+                    if (list.ItemContainerGenerator.ContainerFromIndex(index) is not FrameworkElement row)
+                        return false;
+                    double top = row.TransformToAncestor(presenter)
+                                    .Transform(new System.Windows.Point(0, 0)).Y;
+                    double bottom = top + row.ActualHeight;
+                    double offset = viewer.VerticalOffset;
+                    if (top < offset - 1 || bottom > offset + viewer.ViewportHeight + 1) return false;
+                }
+                return true;
+            }
+            finally
+            {
+                window?.Close();
+                scrollStore?.Clear();
+                try { Directory.Delete(root, true); } catch { /* best effort */ }
+            }
+        });
+
         try
         {
             var payload = ClipboardMonitor.ReadClipboard();
@@ -114,5 +180,17 @@ internal static class SelfTest
         }
         catch { /* still return the report */ }
         return report;
+    }
+
+    private static T? FindChild<T>(DependencyObject parent) where T : DependencyObject
+    {
+        int count = VisualTreeHelper.GetChildrenCount(parent);
+        for (int i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            if (child is T match) return match;
+            if (FindChild<T>(child) is { } nested) return nested;
+        }
+        return null;
     }
 }

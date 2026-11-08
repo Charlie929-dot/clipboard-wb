@@ -157,27 +157,57 @@ internal partial class HistoryWindow : Window
         Top = y;
     }
 
-    public void SelectIndex(int index)
+    /// <summary>
+    /// Select a row and keep it inside the viewport. We deliberately do not rely on
+    /// ListBox.ScrollIntoView: this window never takes focus and uses physical (pixel)
+    /// scrolling, a combination where ScrollIntoView silently does nothing. Instead the
+    /// target offset is derived from the row's real measured bounds and eased into place.
+    /// </summary>
+    public void SelectIndex(int index, bool animate = true)
     {
         if (List.Items.Count == 0) return;
         index = Math.Clamp(index, 0, List.Items.Count - 1);
-        if (List.SelectedIndex == index) return;
 
         var viewer = EnsureScroller();
-        double before = viewer?.VerticalOffset ?? 0;
-        List.SelectedIndex = index;
-        List.ScrollIntoView(List.SelectedItem);
-
+        if (List.SelectedIndex != index) List.SelectedIndex = index;
         if (viewer is null) return;
-        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+
+        viewer.CancelAnimation();
+        if (!animate)
         {
-            double after = viewer.VerticalOffset;
-            if (Math.Abs(after - before) > 1)
-            {
-                viewer.ScrollToVerticalOffset(before);
-                viewer.AnimateTo(after);
-            }
-        }));
+            // Reopening the picker always starts from the top, with no trailing animation.
+            viewer.ScrollToVerticalOffset(0);
+            return;
+        }
+
+        List.UpdateLayout();
+        double current = viewer.VerticalOffset;
+        double? target = ComputeTargetOffset(index, viewer, current);
+        if (target is null || Math.Abs(target.Value - current) < 0.5) return;
+        viewer.AnimateTo(target.Value);
+    }
+
+    private double? ComputeTargetOffset(int index, SmoothScrollViewer viewer, double current)
+    {
+        // Coordinates relative to ItemsPresenter are content coordinates, i.e. unaffected
+        // by the current scroll offset, so they can be compared with VerticalOffset directly.
+        if (FindVisualChild<ItemsPresenter>(List) is not { } presenter) return null;
+        if (List.ItemContainerGenerator.ContainerFromIndex(index) is not FrameworkElement row) return null;
+
+        double viewport = viewer.ViewportHeight;
+        if (viewport <= 0) return null;
+
+        double top = row.TransformToAncestor(presenter).Transform(new System.Windows.Point(0, 0)).Y;
+        double bottom = top + row.ActualHeight;
+
+        const double edge = 10; // keep a little breathing room around the selected row
+        double target = current;
+        if (top < current + edge)
+            target = top - edge;
+        else if (bottom > current + viewport - edge)
+            target = bottom - viewport + edge;
+
+        return Math.Clamp(target, 0, Math.Max(0, viewer.ScrollableHeight));
     }
 
     private SmoothScrollViewer? EnsureScroller()
