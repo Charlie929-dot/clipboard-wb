@@ -25,7 +25,8 @@ public partial class App : System.Windows.Application
     private DispatcherTimer? _autoHide;
     private DispatcherTimer? _suppressReset;
 
-    private IntPtr _targetWindow;
+    /// <summary>Window active when the picker opened; only a fallback paste target now.</summary>
+    private IntPtr _anchorWindow;
     private int _selected;
     private bool _demo;
 
@@ -244,7 +245,9 @@ public partial class App : System.Windows.Application
     private void ShowPopup()
     {
         if (_popup is null || _demo) return;
-        _targetWindow = NativeMethods.GetForegroundWindow();
+        // Fallback only. The real paste target is read when the user confirms a
+        // selection: the no-activate picker stays open while they switch windows.
+        _anchorWindow = NativeMethods.GetForegroundWindow();
         _selected = 0;
         _store?.RefreshIndices();
         if (_settings.PopupFollowCursor || _settings.PopupX is null || _settings.PopupY is null)
@@ -270,6 +273,13 @@ public partial class App : System.Windows.Application
     {
         if (_popup is null || _store is null || _paste is null || _monitor is null) return;
         _autoHide?.Stop();
+
+        // Capture the real focus BEFORE hiding the picker. The user may have
+        // clicked into another window since opening it; SendInput must land there,
+        // not in the window that originally opened the picker.
+        IntPtr foreground = NativeMethods.GetForegroundWindow();
+        IntPtr popupWindow = new System.Windows.Interop.WindowInteropHelper(_popup).Handle;
+
         _popup.HidePopup();
 
         var item = _store.Items.ElementAtOrDefault(Math.Clamp(_selected, 0, Math.Max(0, _store.Items.Count - 1)));
@@ -280,7 +290,7 @@ public partial class App : System.Windows.Application
             _hook.Suppress = true;
             _suppressReset?.Start();
         }
-        _paste.Paste(item, _targetWindow, _monitor);
+        _paste.Paste(item, _anchorWindow, foreground, popupWindow, _monitor);
         _store.MoveToFront(item);
     }
 

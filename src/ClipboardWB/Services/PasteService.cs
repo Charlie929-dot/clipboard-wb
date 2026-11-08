@@ -13,7 +13,16 @@ internal sealed class PasteService
     /// <summary>Raised with a human readable reason when the paste could not be delivered.</summary>
     public event Action<string>? Failed;
 
-    public void Paste(ClipboardItem item, IntPtr targetWindow, ClipboardMonitor monitor)
+    /// <summary>
+    /// Write the chosen entry to the clipboard and press Ctrl+V in the window the
+    /// user is actually working in. The picker is WS_EX_NOACTIVATE, so it never
+    /// owns the focus: <paramref name="foreground"/> IS the paste target, even when
+    /// the user switched to another window after opening the picker. The previous
+    /// behaviour reactivated <paramref name="anchorWindow"/> (the window active at
+    /// open time), which sent the paste back to that original window.
+    /// </summary>
+    public void Paste(ClipboardItem item, IntPtr anchorWindow, IntPtr foreground,
+                      IntPtr popupWindow, ClipboardMonitor monitor)
     {
         // Mark our own write BEFORE touching the clipboard so the poller can
         // match the resulting sequence-number change to this hash.
@@ -25,8 +34,10 @@ internal sealed class PasteService
             return;
         }
 
-        if (targetWindow != IntPtr.Zero)
-            NativeMethods.SetForegroundWindow(targetWindow);
+        // Usually activate nothing: SendInput naturally reaches the live
+        // foreground window. Only restore the anchor when no usable target exists.
+        if (WindowToActivate(foreground, anchorWindow, popupWindow) is { } hwnd)
+            NativeMethods.SetForegroundWindow(hwnd);
 
         var inputs = new[]
         {
@@ -39,6 +50,18 @@ internal sealed class PasteService
                                             Marshal.SizeOf<NativeMethods.INPUT>());
         if (sent != inputs.Length)
             Failed?.Invoke("模拟粘贴失败：目标窗口可能以管理员权限运行");
+    }
+
+    /// <summary>
+    /// Decide whether a window must be restored to the foreground before pasting.
+    /// Returns null when the live foreground window is already a valid target —
+    /// in particular when it differs from the window that opened the picker.
+    /// Pure so the cross-window cases are covered deterministically by --selftest.
+    /// </summary>
+    internal static IntPtr? WindowToActivate(IntPtr foreground, IntPtr anchor, IntPtr popup)
+    {
+        if (foreground != IntPtr.Zero && foreground != popup) return null;
+        return anchor != IntPtr.Zero ? anchor : null;
     }
 
     private static bool WriteClipboard(ClipboardItem item)

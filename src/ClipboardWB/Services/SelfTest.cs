@@ -146,6 +146,21 @@ internal static class SelfTest
             return window is not null;
         });
 
+        // A paste must land in the window focused when the user confirms the
+        // selection, not in the window that happened to open the picker.
+        Check("paste target follows the live foreground window", () =>
+        {
+            var opened = new IntPtr(0x1111);
+            var switched = new IntPtr(0x2222);
+            var picker = new IntPtr(0x3333);
+            return PasteService.WindowToActivate(opened, opened, picker) is null
+                && PasteService.WindowToActivate(switched, opened, picker) is null
+                && PasteService.WindowToActivate(IntPtr.Zero, opened, picker) == opened
+                && PasteService.WindowToActivate(picker, opened, picker) == opened
+                && PasteService.WindowToActivate(switched, IntPtr.Zero, picker) is null
+                && PasteService.WindowToActivate(IntPtr.Zero, IntPtr.Zero, picker) is null;
+        });
+
         Check("popup position round-trips through settings.json", () =>
         {
             string root = Path.Combine(Path.GetTempPath(), "ClipboardWB.SelfTest.Pos");

@@ -37,6 +37,7 @@ src\ClipboardWB\bin\Debug\net10.0-windows\ClipboardWB.exe
 | `★` | 置顶该条，固定在列表最前，且不被容量淘汰 |
 | 拖动面板标题栏 | 自定义面板位置并自动记住（设置里可改回「跟随鼠标」） |
 
+- **粘贴到「确认选择那一刻有焦点」的窗口**：面板是无焦点窗口，打开后你可以先切到另一个程序再选，内容会粘到新窗口，不会跑回打开面板的那个窗口。
 - 置顶项永远排在非置顶项之前：新复制的内容插在「置顶区」之后，粘贴过的条目也只会在非置顶区内前移。
 - 判定阈值是 `KeyboardHook.HoldMilliseconds`（默认 180 ms）；短按不会弹面板，长按也不会误粘贴。
 - 设置 → 「面板跟随鼠标」：关闭后拖动标题栏即可固定位置；重新开启会恢复跟随鼠标并清掉记住的坐标。
@@ -51,7 +52,7 @@ src\ClipboardWB\bin\Debug\net10.0-windows\ClipboardWB.exe
 | --- | --- | --- |
 | 全局热键 | `Services/KeyboardHook.cs` | `WH_KEYBOARD_LL` 低层钩子；扣住 `Ctrl+V` 的 `V` keydown，短按在松键时补发一次带 magic 标记的原生 `Ctrl+V`，长按 180 ms 用 `DispatcherTimer` 唤出面板（排队到下一轮消息循环，不阻塞钩子）；`Win+V`、`Ctrl+Shift+V`、普通字母 `v` 全部放行 |
 | 剪贴板监听 | `Services/ClipboardMonitor.cs` | 轮询 `GetClipboardSequenceNumber`，避开剪贴板查看器链；文本 / 图片 / 文件分别读取并做 SHA-256 去重 |
-| 粘贴 | `Services/PasteService.cs` | 回写剪贴板后用 `SendInput` 模拟 `Ctrl+V`；注入的按键带 magic 标记，钩子自动放行，不会递归触发自己 |
+| 粘贴 | `Services/PasteService.cs` + `App.xaml.cs` | 在用户确认选择时读取 `GetForegroundWindow()` 作为粘贴目标，回写剪贴板后用 `SendInput` 模拟 `Ctrl+V`；**不再激活打开面板时记录的窗口**（旧行为会把焦点拉回原窗口），仅当前台窗口为空或落在自己面板上时才用该锚点兜底；注入的按键带 magic 标记，钩子自动放行 |
 | 历史存储 | `Services/HistoryStore.cs` | `ObservableCollection` + 防抖 JSON 持久化；图片单独存 PNG；新增 / 去重 / 粘贴 / 切换置顶 / 加载都维护「pinned 前缀」不变式，置顶项不参与容量淘汰 |
 | 弹窗 | `Views/HistoryWindow.xaml` | `ShowActivated=False` + `WS_EX_NOACTIVATE` + `WS_EX_TOOLWINDOW`，按光标或记住的位置定位并做工作区收敛；标题栏用物理光标坐标拖动（header 必须 `Background=Transparent` 才能命中空白区域），松手后写入 `settings.json` |
 | 键盘滚动 | `Views/HistoryWindow.xaml.cs`、`Views/SmoothScrollViewer.cs` | 按选中行的实测位置算出目标偏移，再用 `CompositionTarget.Rendering` 缓动滚动；不依赖 `ScrollIntoView`（无焦点窗口 + 物理滚动下它不生效） |
@@ -69,7 +70,7 @@ dist\ClipboardWB.exe --demo --settings :: 用隔离的临时配置展示设置�
 
 `--demo` 会把历史与设置都重定向到 `%TEMP%\ClipboardWB.Demo`，不会碰真实配置。
 
-自检覆盖：钩子安装/卸载、去重、容量淘汰、JSON 持久化与重载、两个窗口的 XAML 解析、**置顶排序不变式**（含切换置顶后重载、淘汰不删置顶项）、**键盘导航滚动**（0→3→7→11→15→19→0 逐一验证目标偏移让选中行落在视口内，含回绕）、**设置窗口滚动**（小屏高度下能滚到最后一行并验证其可见）、以及**面板位置**的配置往返与工作区收敛。
+自检覆盖：钩子安装/卸载、去重、容量淘汰、JSON 持久化与重载、两个窗口的 XAML 解析、**置顶排序不变式**（含切换置顶后重载、淘汰不删置顶项）、**键盘导航滚动**（0→3→7→11→15→19→0 逐一验证目标偏移让选中行落在视口内，含回绕）、**设置窗口滚动**（小屏高度下能滚到最后一行并验证其可见）、**面板位置**的配置往返与工作区收敛，以及**粘贴目标窗口解析**（A 窗口打开 / 切到 B 窗口粘贴时不激活 A）。
 
 端到端脚本：
 
@@ -91,6 +92,15 @@ python scripts\tap_hold_e2e.py
 ```
 
 它依次验证：轻按把当前剪贴板内容**原生粘贴**进输入框、长按不粘贴且弹出面板、`↓` + `V` 粘贴较旧条目，最后恢复原剪贴板。
+
+跨窗口粘贴用两个独立的 Win32 输入框验证：
+
+```bat
+start dist\ClipboardWB.exe
+python scripts\cross_window_e2e.py
+```
+
+基线在 A 窗口打开并粘贴（A 必须收到内容）；随后在 A 打开面板、**切到 B 再按 `V`**，断言焦点确实在 B、B 收到历史条目且 A 保持为空。这能防住「粘贴跑回打开面板的窗口」这类回归。
 
 排查按键问题时可设 `CLIPBOARDWB_KEYLOG=<日志文件路径>` 后启动，钩子会把每次 `V` 的按下/松开、180 ms 判定和补发动作写入日志。
 
@@ -120,3 +130,4 @@ HKCU\...\CurrentVersion\Run\ClipboardWB  开机启动项
 - `v1.0.1` 修复 ↑↓ 键盘导航不自动滚动
 - `v1.1.0` 交互改为「轻按原生粘贴 / 长按 180 ms 唤出历史」
 - `v1.2.0` 置顶项固定最前、设置窗口可滚动、面板可拖动并记住位置
+- `v1.2.1` 修复跨窗口粘贴：内容跟随确认选择时的焦点窗口，不再跑回打开面板的窗口
