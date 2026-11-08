@@ -2,7 +2,7 @@
         x:ClassModifier="internal"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="ClipboardWB 设置" Width="386" Height="404"
+        Title="ClipboardWB 设置" Width="386" Height="560"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         ResizeMode="NoResize" ShowInTaskbar="False" WindowStartupLocation="CenterScreen"
         SnapsToDevicePixels="True" UseLayoutRounding="True"
@@ -53,7 +53,11 @@
                             Click="Close_Click" VerticalAlignment="Top" />
                 </Grid>
 
-                <StackPanel Grid.Row="2" Margin="18,10,18,4">
+                <!-- scrollable body: the hotkey table used to be clipped by the footer -->
+                <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              PanningMode="VerticalOnly" Margin="0,0,0,2">
+                    <StackPanel Margin="18,10,14,12">
                     <!-- max items -->
                     <TextBlock Text="历史容量" FontFamily="{StaticResource UiFont}" FontSize="12.5"
                                Foreground="{StaticResource TextPrimary}" />
@@ -90,6 +94,25 @@
 
                     <Border Height="1" Background="{StaticResource GlassBorder}" Margin="0,16,0,14" />
 
+                    <!-- popup position -->
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="面板跟随鼠标" FontFamily="{StaticResource UiFont}" FontSize="12.5"
+                                       Foreground="{StaticResource TextPrimary}" />
+                            <TextBlock Text="关闭后拖动面板标题栏即可固定位置" Margin="0,3,0,0"
+                                       FontFamily="{StaticResource UiFont}" FontSize="10.5"
+                                       Foreground="{StaticResource TextMuted}" />
+                        </StackPanel>
+                        <CheckBox x:Name="FollowCursorBox" Grid.Column="1" Style="{StaticResource Switch}"
+                                  VerticalAlignment="Center" Click="FollowCursor_Click" />
+                    </Grid>
+
+                    <Border Height="1" Background="{StaticResource GlassBorder}" Margin="0,16,0,14" />
+
                     <!-- hotkey reference -->
                     <TextBlock Text="操作方式" FontFamily="{StaticResource UiFont}" FontSize="12.5"
                                Foreground="{StaticResource TextPrimary}" />
@@ -121,7 +144,8 @@
                                    FontSize="11.5" Foreground="{StaticResource Accent}" />
                         <TextBlock Grid.Row="4" Grid.Column="1" Text="关闭面板，不影响原剪贴板" Style="{StaticResource HintText}" />
                     </Grid>
-                </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
 
                 <!-- footer -->
                 <Border Grid.Row="3" BorderBrush="{StaticResource GlassBorder}" BorderThickness="0,1,0,0"

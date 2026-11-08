@@ -17,6 +17,8 @@ internal partial class HistoryWindow : Window
     private readonly DispatcherTimer _hideTimer;
     private HistoryStore? _store;
     private SmoothScrollViewer? _scroller;
+    private bool _dragging;
+    private double _dragX, _dragY, _dragLeft, _dragTop;
 
     /// <summary>True while the picker is logically open (independent of fade-out).</summary>
     public bool IsOpen { get; private set; }
@@ -24,6 +26,9 @@ internal partial class HistoryWindow : Window
     public event Action<int>? ItemChosen;
     public event Action? CloseRequested;
     public event Action<ClipboardItem>? PinToggled;
+
+    /// <summary>Raised after the user drags the header; carries the new DIP origin.</summary>
+    public event Action<double, double>? PositionChanged;
 
     public HistoryWindow()
     {
@@ -116,45 +121,116 @@ internal partial class HistoryWindow : Window
         EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
     };
 
-    /// <summary>Position the card next to the caret/cursor, clamped to the monitor work area.</summary>
-    public void PositionNearCursor()
+    private double DeviceScale =>
+        PresentationSource.FromVisual(this)?.CompositionTarget?.TransformFromDevice.M11 ?? 1.0;
+
+    /// <summary>Work area (DIPs) of the monitor containing the given DIP point.</summary>
+    private (double left, double top, double right, double bottom) WorkArea(double x, double y)
     {
-        NativeMethods.GetCursorPos(out var point);
+        double scale = DeviceScale;
+        var probe = new NativeMethods.POINT
+        {
+            X = (int)Math.Round(x / scale),
+            Y = (int)Math.Round(y / scale)
+        };
         var info = new NativeMethods.MONITORINFO
         {
             cbSize = Marshal.SizeOf<NativeMethods.MONITORINFO>()
         };
-        bool hasMonitor = NativeMethods.GetMonitorInfo(
-            NativeMethods.MonitorFromPoint(point, NativeMethods.MONITOR_DEFAULTTONEAREST), ref info);
+        if (NativeMethods.GetMonitorInfo(
+                NativeMethods.MonitorFromPoint(probe, NativeMethods.MONITOR_DEFAULTTONEAREST), ref info))
+            return (info.rcWork.Left * scale, info.rcWork.Top * scale,
+                    info.rcWork.Right * scale, info.rcWork.Bottom * scale);
 
-        double scale = 1.0;
-        var source = PresentationSource.FromVisual(this);
-        if (source?.CompositionTarget is not null)
-            scale = source.CompositionTarget.TransformFromDevice.M11;
+        var area = SystemParameters.WorkArea;
+        return (area.Left, area.Top, area.Right, area.Bottom);
+    }
 
-        double left, top, right, bottom;
-        if (hasMonitor)
-        {
-            left = info.rcWork.Left * scale;
-            top = info.rcWork.Top * scale;
-            right = info.rcWork.Right * scale;
-            bottom = info.rcWork.Bottom * scale;
-        }
-        else
-        {
-            var area = SystemParameters.WorkArea;
-            left = area.Left; top = area.Top; right = area.Right; bottom = area.Bottom;
-        }
+    /// <summary>Position the card next to the cursor, clamped to the monitor work area.</summary>
+    public void PositionNearCursor()
+    {
+        NativeMethods.GetCursorPos(out var point);
+        double scale = DeviceScale;
+        double cx = point.X * scale, cy = point.Y * scale;
+        var (left, top, right, bottom) = WorkArea(cx, cy);
 
-        double x = point.X * scale + 18;
-        double y = point.Y * scale - 44;
-        if (x + Width > right - 12) x = point.X * scale - Width - 18;
+        double x = cx + 18;
+        double y = cy - 44;
+        if (x + Width > right - 12) x = cx - Width - 18;
         if (x < left + 12) x = left + 12;
         if (y + Height > bottom - 12) y = bottom - Height - 12;
         if (y < top + 12) y = top + 12;
 
         Left = x;
         Top = y;
+    }
+
+    /// <summary>Reuse the origin the user dragged the panel to.</summary>
+    public void ApplySavedPosition(double x, double y)
+    {
+        Left = x;
+        Top = y;
+        ClampToWorkArea();
+    }
+
+    private void ClampToWorkArea()
+    {
+        var (left, top, right, bottom) = WorkArea(Left, Top);
+        double minX = left + 12, minY = top + 12;
+        Left = Math.Clamp(Left, minX, Math.Max(minX, right - Width - 12));
+        Top = Math.Clamp(Top, minY, Math.Max(minY, bottom - Height - 12));
+    }
+
+    // The window is WS_EX_NOACTIVATE, so DragMove / WM_SYSCOMMAND is unreliable.
+    // Track the physical cursor instead: it never drifts as the window itself moves.
+    private void Header_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (FindParent<Button>(e.OriginalSource as DependencyObject) is not null) return;
+        NativeMethods.GetCursorPos(out var pt);
+        double scale = DeviceScale;
+        _dragX = pt.X * scale;
+        _dragY = pt.Y * scale;
+        _dragLeft = Left;
+        _dragTop = Top;
+        _dragging = true;
+        CaptureMouse();
+        e.Handled = true;
+    }
+
+    protected override void OnPreviewMouseMove(System.Windows.Input.MouseEventArgs e)
+    {
+        if (_dragging)
+        {
+            if (e.LeftButton != MouseButtonState.Pressed)
+            {
+                EndDrag();
+            }
+            else
+            {
+                NativeMethods.GetCursorPos(out var pt);
+                double scale = DeviceScale;
+                Left = _dragLeft + (pt.X * scale - _dragX);
+                Top = _dragTop + (pt.Y * scale - _dragY);
+                e.Handled = true;
+            }
+        }
+        base.OnPreviewMouseMove(e);
+    }
+
+    protected override void OnPreviewMouseLeftButtonUp(MouseButtonEventArgs e)
+    {
+        if (_dragging) EndDrag(notify: true);
+        base.OnPreviewMouseLeftButtonUp(e);
+    }
+
+    private void EndDrag(bool notify = false)
+    {
+        if (!_dragging) return;
+        _dragging = false;
+        if (IsMouseCaptured) ReleaseMouseCapture();
+        if (!notify) return;
+        ClampToWorkArea();
+        PositionChanged?.Invoke(Left, Top);
     }
 
     /// <summary>

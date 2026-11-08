@@ -2,7 +2,7 @@
 
 一个常驻托盘的 Windows 剪贴板历史工具。**轻按 `Ctrl+V` 就是原生粘贴**，和平时完全一样、不弹面板；**按住 `Ctrl+V` 约 180 ms** 才唤出历史面板，`↑` / `↓` 选择，**再按一次 `V` 把选中内容粘贴到当前窗口**。面板是无焦点置顶窗口，不会抢走光标，也不会打断你正在输入的应用。
 
-界面是暗色玻璃卡片：渐入缩放动画、选中项平滑高亮、像素级平滑滚动（`↑` / `↓` / 数字直达会自动把选中行滚进视野）、亚克力质感的托盘菜单与设置窗口。
+界面是暗色玻璃卡片：渐入缩放动画、选中项平滑高亮、像素级平滑滚动（`↑` / `↓` / 数字直达会自动把选中行滚进视野）、亚克力质感的托盘菜单与设置窗口。**置顶项固定在列表最前**；面板标题栏可拖动，位置会被记住（设置里可切回跟随鼠标）；设置窗口内容支持鼠标滚轮，小屏也能看全。
 
 ## 快速开始
 
@@ -34,9 +34,12 @@ src\ClipboardWB\bin\Debug\net10.0-windows\ClipboardWB.exe
 | `1` – `9` | 直达第 N 条并粘贴 |
 | `Esc` | 关闭面板，不改动剪贴板 |
 | 鼠标单击 / 双击 | 选中 / 粘贴 |
-| `★` | 置顶该条，不被容量淘汰 |
+| `★` | 置顶该条，固定在列表最前，且不被容量淘汰 |
+| 拖动面板标题栏 | 自定义面板位置并自动记住（设置里可改回「跟随鼠标」） |
 
+- 置顶项永远排在非置顶项之前：新复制的内容插在「置顶区」之后，粘贴过的条目也只会在非置顶区内前移。
 - 判定阈值是 `KeyboardHook.HoldMilliseconds`（默认 180 ms）；短按不会弹面板，长按也不会误粘贴。
+- 设置 → 「面板跟随鼠标」：关闭后拖动标题栏即可固定位置；重新开启会恢复跟随鼠标并清掉记住的坐标。
 - 面板在松开 `Ctrl` 后仍会停留，方便用鼠标选；12 秒无操作自动淡出。
 - 点击面板外部、`Esc`、或完成粘贴都会关闭面板。
 - 支持 **文本 / 图片 / 文件列表**，相同内容自动去重并移到最前，历史持久化到磁盘。
@@ -49,8 +52,8 @@ src\ClipboardWB\bin\Debug\net10.0-windows\ClipboardWB.exe
 | 全局热键 | `Services/KeyboardHook.cs` | `WH_KEYBOARD_LL` 低层钩子；扣住 `Ctrl+V` 的 `V` keydown，短按在松键时补发一次带 magic 标记的原生 `Ctrl+V`，长按 180 ms 用 `DispatcherTimer` 唤出面板（排队到下一轮消息循环，不阻塞钩子）；`Win+V`、`Ctrl+Shift+V`、普通字母 `v` 全部放行 |
 | 剪贴板监听 | `Services/ClipboardMonitor.cs` | 轮询 `GetClipboardSequenceNumber`，避开剪贴板查看器链；文本 / 图片 / 文件分别读取并做 SHA-256 去重 |
 | 粘贴 | `Services/PasteService.cs` | 回写剪贴板后用 `SendInput` 模拟 `Ctrl+V`；注入的按键带 magic 标记，钩子自动放行，不会递归触发自己 |
-| 历史存储 | `Services/HistoryStore.cs` | `ObservableCollection` + 防抖 JSON 持久化；图片单独存 PNG 文件，置顶项不参与淘汰 |
-| 弹窗 | `Views/HistoryWindow.xaml` | `ShowActivated=False` + `WS_EX_NOACTIVATE` + `WS_EX_TOOLWINDOW`，靠光标所在显示器定位并做工作区边界收敛 |
+| 历史存储 | `Services/HistoryStore.cs` | `ObservableCollection` + 防抖 JSON 持久化；图片单独存 PNG；新增 / 去重 / 粘贴 / 切换置顶 / 加载都维护「pinned 前缀」不变式，置顶项不参与容量淘汰 |
+| 弹窗 | `Views/HistoryWindow.xaml` | `ShowActivated=False` + `WS_EX_NOACTIVATE` + `WS_EX_TOOLWINDOW`，按光标或记住的位置定位并做工作区收敛；标题栏用物理光标坐标拖动（header 必须 `Background=Transparent` 才能命中空白区域），松手后写入 `settings.json` |
 | 键盘滚动 | `Views/HistoryWindow.xaml.cs`、`Views/SmoothScrollViewer.cs` | 按选中行的实测位置算出目标偏移，再用 `CompositionTarget.Rendering` 缓动滚动；不依赖 `ScrollIntoView`（无焦点窗口 + 物理滚动下它不生效） |
 | 设置 / 托盘 | `Views/SettingsWindow.xaml`、`Services/TrayService.cs` | 暗色自绘菜单、开关、容量滑杆、注册表开机启动项 |
 
@@ -61,9 +64,12 @@ src\ClipboardWB\bin\Debug\net10.0-windows\ClipboardWB.exe
 ```bat
 dist\ClipboardWB.exe --selftest   :: 无界面自检，结果写到 selftest.log
 dist\ClipboardWB.exe --demo       :: 用临时目录的示例数据展示面板，不安装钩子
+dist\ClipboardWB.exe --demo --settings :: 用隔离的临时配置展示设置窗口
 ```
 
-自检覆盖：钩子安装/卸载、去重、容量淘汰、JSON 持久化与重载、两个窗口的 XAML 解析，以及**键盘导航滚动**——对 0→3→7→11→15→19→0 的跳转逐一验证算出的目标偏移确实让选中行落在视口内（含从末尾回绕到顶部）。
+`--demo` 会把历史与设置都重定向到 `%TEMP%\ClipboardWB.Demo`，不会碰真实配置。
+
+自检覆盖：钩子安装/卸载、去重、容量淘汰、JSON 持久化与重载、两个窗口的 XAML 解析、**置顶排序不变式**（含切换置顶后重载、淘汰不删置顶项）、**键盘导航滚动**（0→3→7→11→15→19→0 逐一验证目标偏移让选中行落在视口内，含回绕）、**设置窗口滚动**（小屏高度下能滚到最后一行并验证其可见）、以及**面板位置**的配置往返与工作区收敛。
 
 端到端脚本：
 
@@ -93,7 +99,7 @@ python scripts\tap_hold_e2e.py
 ```
 %APPDATA%\ClipboardWB\history.json     历史记录
 %APPDATA%\ClipboardWB\images\          图片条目
-%APPDATA%\ClipboardWB\settings.json    容量、开机自启
+%APPDATA%\ClipboardWB\settings.json    容量、开机自启、面板跟随鼠标 / 固定位置
 HKCU\...\CurrentVersion\Run\ClipboardWB  开机启动项
 ```
 
@@ -113,3 +119,4 @@ HKCU\...\CurrentVersion\Run\ClipboardWB  开机启动项
 - `v1.0.0` 初始版本
 - `v1.0.1` 修复 ↑↓ 键盘导航不自动滚动
 - `v1.1.0` 交互改为「轻按原生粘贴 / 长按 180 ms 唤出历史」
+- `v1.2.0` 置顶项固定最前、设置窗口可滚动、面板可拖动并记住位置

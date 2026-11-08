@@ -60,18 +60,19 @@ public partial class App : System.Windows.Application
         }
 
         _demo = args.Any(a => a.Equals("--demo", StringComparison.OrdinalIgnoreCase));
-        _settings = AppSettings.Load();
-
         string? root = _demo
             ? Path.Combine(Path.GetTempPath(), "ClipboardWB.Demo")
             : null;
         // Demo rows have stable hashes, so a persisted copy would otherwise keep
-        // showing stale sample text after the wording changes.
+        // showing stale sample text after the wording changes. Settings are redirected
+        // too, so poking around the demo UI never touches the real configuration.
         if (root is not null)
         {
             try { if (Directory.Exists(root)) Directory.Delete(root, recursive: true); }
             catch { /* demo data is disposable */ }
+            AppSettings.OverrideDirectory = root;
         }
+        _settings = AppSettings.Load();
         _store = new HistoryStore(root, _settings.MaxItems);
         _monitor = new ClipboardMonitor();
         _paste = new PasteService();
@@ -80,6 +81,13 @@ public partial class App : System.Windows.Application
         _popup.Bind(_store);
         _popup.ItemChosen += index => { _selected = index; PasteSelected(); };
         _popup.PinToggled += item => _store.TogglePin(item);
+        _popup.PositionChanged += (x, y) =>
+        {
+            _settings.PopupFollowCursor = false;
+            _settings.PopupX = x;
+            _settings.PopupY = y;
+            _settings.Save();
+        };
         // Materialize the HWND and run the first WPF layout/render off-screen, so
         // the first held Ctrl+V never stalls the hook behind window creation.
         // Root starts at Opacity=0, so this warm-up is invisible.
@@ -126,6 +134,11 @@ public partial class App : System.Windows.Application
         if (_demo)
         {
             SeedDemoData();
+            if (args.Any(a => a.Equals("--settings", StringComparison.OrdinalIgnoreCase)))
+            {
+                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(ShowSettings));
+                return;
+            }
             Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
             {
                 var area = SystemParameters.WorkArea;
@@ -234,7 +247,10 @@ public partial class App : System.Windows.Application
         _targetWindow = NativeMethods.GetForegroundWindow();
         _selected = 0;
         _store?.RefreshIndices();
-        _popup.PositionNearCursor();
+        if (_settings.PopupFollowCursor || _settings.PopupX is null || _settings.PopupY is null)
+            _popup.PositionNearCursor();
+        else
+            _popup.ApplySavedPosition(_settings.PopupX.Value, _settings.PopupY.Value);
         _popup.ShowPopup();
         _popup.SelectIndex(0, animate: false); // always reopen at the top, no leftover scroll
         RestartAutoHide();

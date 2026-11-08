@@ -54,7 +54,10 @@
                 </Border>
 
                 <!-- header -->
-                <Grid Grid.Row="1" Margin="16,13,12,10">
+                <Grid Grid.Row="1" Margin="16,13,12,10" Cursor="SizeAll"
+                      Background="Transparent"
+                      PreviewMouseLeftButtonDown="Header_PreviewMouseLeftButtonDown"
+                      ToolTip="拖动可移动面板位置">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
@@ -89,7 +92,7 @@
                     </Border>
 
                     <Button Grid.Column="3" Style="{StaticResource IconButton}" Content="✕"
-                            ToolTip="关闭" Click="CloseButton_Click" />
+                            Cursor="Hand" ToolTip="关闭" Click="CloseButton_Click" />
                 </Grid>
 
                 <!-- list -->

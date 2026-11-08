@@ -14,8 +14,20 @@ internal sealed class AppSettings
     public int MaxItems { get; set; } = 40;
     public bool AutoStart { get; set; }
 
-    public static string DataDirectory => Path.Combine(
+    /// <summary>True: popup follows the cursor. False: use the dragged, saved position.</summary>
+    public bool PopupFollowCursor { get; set; } = true;
+
+    /// <summary>Saved popup origin in DIPs (null until the user drags the panel).</summary>
+    public double? PopupX { get; set; }
+    public double? PopupY { get; set; }
+
+    private static readonly string DefaultDirectory = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ClipboardWB");
+
+    /// <summary>Demo / test runs redirect settings away from the real user config.</summary>
+    public static string? OverrideDirectory { get; set; }
+
+    public static string DataDirectory => OverrideDirectory ?? DefaultDirectory;
 
     private static string Path_ => Path.Combine(DataDirectory, "settings.json");
 

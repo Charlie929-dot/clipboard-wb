@@ -25,11 +25,16 @@ internal partial class SettingsWindow : Window
         _statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2.6) };
         _statusTimer.Tick += (_, _) => { _statusTimer.Stop(); StatusText.Text = ""; };
 
+        // Keep the whole card on screen on small/short displays; the body scrolls.
+        MaxHeight = Math.Max(320, SystemParameters.WorkArea.Height - 36);
+        if (Height > MaxHeight) Height = MaxHeight;
+
         Loaded += (_, _) =>
         {
             MaxSlider.Value = _settings.MaxItems;
             MaxValue.Text = _settings.MaxItems + " 条";
             AutoStartBox.IsChecked = _settings.AutoStart;
+            FollowCursorBox.IsChecked = _settings.PopupFollowCursor;
             _ready = true;
 
             var grid = (Grid)Content;
@@ -43,6 +48,12 @@ internal partial class SettingsWindow : Window
                 new DoubleAnimation(0.96, 1, duration) { EasingFunction = ease });
             CardScale.BeginAnimation(ScaleTransform.ScaleYProperty,
                 new DoubleAnimation(0.96, 1, duration) { EasingFunction = ease });
+        };
+
+        // Dragging the history panel can switch the mode behind this window's back.
+        Activated += (_, _) =>
+        {
+            if (_ready) FollowCursorBox.IsChecked = _settings.PopupFollowCursor;
         };
     }
 
@@ -82,6 +93,19 @@ internal partial class SettingsWindow : Window
         AutoStartBox.IsChecked = _settings.AutoStart;
         _settings.Save();
         Status(ok ? (enable ? "已加入开机启动" : "已取消开机启动") : "没有权限修改启动项");
+    }
+
+    private void FollowCursor_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_ready) return;
+        _settings.PopupFollowCursor = FollowCursorBox.IsChecked == true;
+        if (_settings.PopupFollowCursor)
+        {
+            _settings.PopupX = null;
+            _settings.PopupY = null;
+        }
+        _settings.Save();
+        Status(_settings.PopupFollowCursor ? "面板将跟随鼠标" : "拖动面板标题栏可固定位置");
     }
 
     private void Clear_Click(object sender, RoutedEventArgs e)

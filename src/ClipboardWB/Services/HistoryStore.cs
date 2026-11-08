@@ -42,6 +42,9 @@ internal sealed class HistoryStore
         Load();
     }
 
+    /// <summary>Number of pinned rows. Every mutation keeps them in indices [0, PinnedCount).</summary>
+    private int PinnedCount => Items.Count(i => i.Pinned);
+
     public void Add(ClipPayload payload)
     {
         var existing = Items.FirstOrDefault(i => i.Hash == payload.Hash);
@@ -51,7 +54,8 @@ internal sealed class HistoryStore
             if (!existing.Pinned)
             {
                 int index = Items.IndexOf(existing);
-                if (index > 0) Items.Move(index, 0);
+                int target = PinnedCount;          // front of the *unpinned* section
+                if (index != target) Items.Move(index, target);
             }
             existing.RefreshComputed();
         }
@@ -73,7 +77,7 @@ internal sealed class HistoryStore
                 item.ImageFile = Path.GetFileName(WriteImage(item.Id, payload.Png));
                 item.Thumbnail = MakeThumbnail(payload.Png);
             }
-            Items.Insert(0, item);
+            Items.Insert(PinnedCount, item);       // never jump ahead of a pinned row
         }
 
         Trim();
@@ -93,8 +97,18 @@ internal sealed class HistoryStore
 
     public void TogglePin(ClipboardItem item)
     {
+        int index = Items.IndexOf(item);
+        if (index < 0) return;
+
         item.Pinned = !item.Pinned;
+        // After the toggle: pinning puts it at the end of the pinned block,
+        // unpinning puts it at the start of the unpinned block.
+        int pinned = PinnedCount;
+        int target = item.Pinned ? pinned - 1 : pinned;
+        if (index != target) Items.Move(index, target);
+
         item.RefreshComputed();
+        RefreshIndices();
         RequestSave();
         Changed?.Invoke();
     }
@@ -102,7 +116,9 @@ internal sealed class HistoryStore
     public void MoveToFront(ClipboardItem item)
     {
         int index = Items.IndexOf(item);
-        if (index > 0) Items.Move(index, 0);
+        if (index < 0) return;
+        int target = item.Pinned ? 0 : PinnedCount;
+        if (index != target) Items.Move(index, target);
         item.CreatedAt = DateTime.Now;
         item.RefreshComputed();
         RefreshIndices();
@@ -209,7 +225,9 @@ internal sealed class HistoryStore
             var items = JsonSerializer.Deserialize<List<ClipboardItem>>(
                 File.ReadAllText(_historyPath), JsonOptions);
             if (items is null) return;
-            foreach (var item in items)
+            // Older files may have pinned rows scattered through the list; restore
+            // the invariant (stable within each section) before anything else runs.
+            foreach (var item in items.Where(i => i.Pinned).Concat(items.Where(i => !i.Pinned)))
             {
                 if (!string.IsNullOrEmpty(item.ImageFile))
                 {
