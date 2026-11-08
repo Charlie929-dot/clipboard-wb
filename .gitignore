@@ -1,0 +1,26 @@
+# build output
+[Bb]in/
+[Oo]bj/
+[Dd]ist/
+[Dd]ist-fx/
+[Dd]ist-sc/
+*.user
+*.suo
+.vs/
+
+# test / capture artifacts
+selftest.log
+*.log
+*.tmp
+scripts/e2e-*.png
+scripts/crop-*.png
+scripts/gui-preview.png
+scripts/gui-crop*.png
+
+# python cache (icon + screenshot helpers)
+__pycache__/
+*.pyc
+
+# OS noise
+Thumbs.db
+Desktop.ini

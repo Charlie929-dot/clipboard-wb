@@ -1,0 +1,230 @@
+<Window x:Class="ClipboardWB.Views.HistoryWindow"
+        x:ClassModifier="internal"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:v="clr-namespace:ClipboardWB.Views"
+        xmlns:models="clr-namespace:ClipboardWB.Models"
+        Title="ClipboardWB" Width="432" Height="486"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ResizeMode="NoResize" ShowInTaskbar="False" Topmost="True"
+        ShowActivated="False" Focusable="False" WindowStartupLocation="Manual"
+        SnapsToDevicePixels="True" UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Ideal" TextOptions.TextRenderingMode="ClearType">
+
+    <Grid x:Name="Root" Margin="22" RenderTransformOrigin="0.5,0.88" Opacity="0">
+        <Grid.RenderTransform>
+            <TransformGroup>
+                <ScaleTransform x:Name="RootScale" ScaleX="1" ScaleY="1" />
+                <TranslateTransform x:Name="RootShift" X="0" Y="0" />
+            </TransformGroup>
+        </Grid.RenderTransform>
+
+        <!-- detached soft shadow -->
+        <Border CornerRadius="18" Background="#66091018" Margin="0">
+            <Border.Effect>
+                <DropShadowEffect Color="#00060C" BlurRadius="26" ShadowDepth="8"
+                                  Direction="270" Opacity="0.72" />
+            </Border.Effect>
+        </Border>
+
+        <!-- glass card -->
+        <Border CornerRadius="18" Background="{StaticResource GlassBackground}"
+                BorderBrush="{StaticResource GlassBorder}" BorderThickness="1" ClipToBounds="True">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="2" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- top accent hairline -->
+                <Border Background="{StaticResource AccentGradient}" Opacity="0.92" />
+
+                <!-- ambient glow in the corner -->
+                <Border Grid.Row="0" Grid.RowSpan="4" Width="230" Height="170"
+                        HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-90,-70,0"
+                        Opacity="0.16" IsHitTestVisible="False">
+                    <Border.Background>
+                        <RadialGradientBrush>
+                            <GradientStop Color="#9A8BFF" Offset="0" />
+                            <GradientStop Color="#009A8BFF" Offset="1" />
+                        </RadialGradientBrush>
+                    </Border.Background>
+                </Border>
+
+                <!-- header -->
+                <Grid Grid.Row="1" Margin="16,13,12,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Width="30" Height="30" CornerRadius="9" Margin="0,0,11,0"
+                            Background="{StaticResource AccentGradient}">
+                        <Grid>
+                            <Border Width="13" Height="15" CornerRadius="2" BorderBrush="White"
+                                    BorderThickness="1.4" Margin="0,2,0,0" />
+                            <Border Width="7" Height="3.5" CornerRadius="1.5" Background="White"
+                                    VerticalAlignment="Top" Margin="0,-1.5,0,0" />
+                            <Border Width="7" Height="1.2" Background="White" Opacity="0.85"
+                                    VerticalAlignment="Center" Margin="0,3,0,0" />
+                        </Grid>
+                    </Border>
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="剪贴板历史" FontFamily="{StaticResource UiFont}" FontSize="14"
+                                   FontWeight="SemiBold" Foreground="{StaticResource TextPrimary}" />
+                        <TextBlock Text="按住 Ctrl + V 唤出 · 自动记录" Margin="0,2,0,0"
+                                   FontFamily="{StaticResource UiFont}" FontSize="10.5"
+                                   Foreground="{StaticResource TextMuted}" />
+                    </StackPanel>
+
+                    <Border Grid.Column="2" CornerRadius="7" Background="{StaticResource SubtleFill}"
+                            Padding="8,3" VerticalAlignment="Center" Margin="0,0,6,0">
+                        <TextBlock x:Name="CountText" Text="0 条" FontFamily="{StaticResource UiFont}"
+                                   FontSize="10.5" Foreground="{StaticResource TextSecondary}" />
+                    </Border>
+
+                    <Button Grid.Column="3" Style="{StaticResource IconButton}" Content="✕"
+                            ToolTip="关闭" Click="CloseButton_Click" />
+                </Grid>
+
+                <!-- list -->
+                <Grid Grid.Row="2">
+                    <ListBox x:Name="List" Background="Transparent" BorderThickness="0"
+                             Padding="12,2,9,6" SelectionMode="Single" Focusable="False"
+                             ItemContainerStyle="{StaticResource HistoryItem}"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             ScrollViewer.CanContentScroll="False"
+                             VirtualizingPanel.ScrollUnit="Pixel"
+                             VirtualizingPanel.IsVirtualizing="True"
+                             VirtualizingPanel.VirtualizationMode="Recycling"
+                             PreviewMouseLeftButtonDown="List_PreviewMouseLeftButtonDown">
+                        <ListBox.Template>
+                            <ControlTemplate TargetType="ListBox">
+                                <Border Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        Padding="{TemplateBinding Padding}">
+                                    <v:SmoothScrollViewer Focusable="False"
+                                                          CanContentScroll="False"
+                                                          HorizontalScrollBarVisibility="Disabled"
+                                                          VerticalScrollBarVisibility="Auto">
+                                        <ItemsPresenter />
+                                    </v:SmoothScrollViewer>
+                                </Border>
+                            </ControlTemplate>
+                        </ListBox.Template>
+
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type models:ClipboardItem}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="27" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Width="21" Height="21" CornerRadius="6" Margin="0,1,6,0"
+                                            Background="#16FFFFFF" VerticalAlignment="Top">
+                                        <TextBlock Text="{Binding Index}" HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" FontSize="10.5"
+                                                   FontFamily="{StaticResource UiFont}"
+                                                   Foreground="{StaticResource TextSecondary}" />
+                                    </Border>
+
+                                    <StackPanel Grid.Column="1">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+                                            <Border x:Name="ThumbBox" Visibility="Collapsed" Width="54"
+                                                    Height="38" CornerRadius="6" Margin="0,0,9,0"
+                                                    Background="#10FFFFFF" ClipToBounds="True">
+                                                <Image Source="{Binding Thumbnail}" Stretch="UniformToFill" />
+                                            </Border>
+                                            <TextBlock x:Name="PreviewText" Grid.Column="1"
+                                                       Text="{Binding Preview}" TextWrapping="Wrap"
+                                                       MaxHeight="38" TextTrimming="CharacterEllipsis"
+                                                       FontFamily="{StaticResource UiFont}" FontSize="12.3"
+                                                       LineHeight="18" Foreground="{StaticResource TextPrimary}" />
+                                        </Grid>
+                                        <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                                            <TextBlock Text="{Binding KindLabel}" Style="{StaticResource HintText}" />
+                                            <TextBlock Text=" · " Style="{StaticResource HintText}" />
+                                            <TextBlock Text="{Binding Detail}" Style="{StaticResource HintText}"
+                                                       MaxWidth="150" TextTrimming="CharacterEllipsis" />
+                                            <TextBlock Text=" · " Style="{StaticResource HintText}" />
+                                            <TextBlock Text="{Binding TimeText}" Style="{StaticResource HintText}" />
+                                        </StackPanel>
+                                    </StackPanel>
+
+                                    <Button x:Name="PinButton" Grid.Column="2" Content="★" FontSize="12"
+                                            Style="{StaticResource IconButton}" Opacity="0.45"
+                                            ToolTip="置顶 / 取消置顶" VerticalAlignment="Top"
+                                            Tag="{Binding}" Click="PinButton_Click" />
+                                </Grid>
+                                <DataTemplate.Triggers>
+                                    <DataTrigger Binding="{Binding Kind}" Value="Image">
+                                        <Setter TargetName="ThumbBox" Property="Visibility" Value="Visible" />
+                                    </DataTrigger>
+                                    <DataTrigger Binding="{Binding Pinned}" Value="True">
+                                        <Setter TargetName="PinButton" Property="Opacity" Value="1" />
+                                        <Setter TargetName="PinButton" Property="Foreground" Value="{StaticResource Accent}" />
+                                    </DataTrigger>
+                                </DataTemplate.Triggers>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <!-- empty state -->
+                    <StackPanel x:Name="EmptyHint" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                Visibility="Collapsed" IsHitTestVisible="False">
+                        <Border Width="46" Height="46" CornerRadius="14" Background="{StaticResource SubtleFill}"
+                                HorizontalAlignment="Center" Margin="0,0,0,12">
+                            <TextBlock Text="◫" FontSize="22" HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" Foreground="{StaticResource Accent}" />
+                        </Border>
+                        <TextBlock Text="还没有记录" FontFamily="{StaticResource UiFont}" FontSize="13"
+                                   HorizontalAlignment="Center" Foreground="{StaticResource TextSecondary}" />
+                        <TextBlock Text="复制任意内容后，按 Ctrl + V 就会出现在这里" Margin="0,6,0,0"
+                                   FontFamily="{StaticResource UiFont}" FontSize="11"
+                                   HorizontalAlignment="Center" Foreground="{StaticResource TextMuted}" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- keyboard hints -->
+                <Border Grid.Row="3" BorderBrush="{StaticResource GlassBorder}" BorderThickness="0,1,0,0"
+                        Padding="14,10" Background="#08000000">
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Border Style="{StaticResource KeyCap}">
+                            <TextBlock Text="↑ ↓" FontFamily="{StaticResource UiFont}" FontSize="10.5"
+                                       Foreground="{StaticResource TextSecondary}" />
+                        </Border>
+                        <TextBlock Text="选择" Style="{StaticResource HintText}" Margin="0,0,10,0" />
+                        <Border Style="{StaticResource KeyCap}">
+                            <TextBlock Text="V" FontFamily="{StaticResource UiFont}" FontSize="10.5"
+                                       Foreground="{StaticResource Accent2}" />
+                        </Border>
+                        <TextBlock Text="粘贴" Style="{StaticResource HintText}" Margin="0,0,10,0" />
+                        <Border Style="{StaticResource KeyCap}">
+                            <TextBlock Text="1-9" FontFamily="{StaticResource UiFont}" FontSize="10.5"
+                                       Foreground="{StaticResource TextSecondary}" />
+                        </Border>
+                        <TextBlock Text="直达" Style="{StaticResource HintText}" Margin="0,0,10,0" />
+                        <Border Style="{StaticResource KeyCap}">
+                            <TextBlock Text="Esc" FontFamily="{StaticResource UiFont}" FontSize="10.5"
+                                       Foreground="{StaticResource TextSecondary}" />
+                        </Border>
+                        <TextBlock Text="关闭" Style="{StaticResource HintText}" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
