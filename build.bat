@@ -11,6 +11,8 @@ set "DOTNET_NOLOGO=1"
 if /I "%~1"=="fx" goto FX
 
 echo [ClipboardWB] Publishing self-contained build to dist\ ...
+"%SDK%" clean "%ROOT%src\ClipboardWB\ClipboardWB.csproj" -c Release -r win-x64 -v:q
+if errorlevel 1 goto FAIL
 "%SDK%" publish "%ROOT%src\ClipboardWB\ClipboardWB.csproj" ^
   -c Release -r win-x64 --self-contained true ^
   -p:PublishSingleFile=true -p:DebugType=None ^

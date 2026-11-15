@@ -13,6 +13,7 @@ internal sealed class AppSettings
 
     public int MaxItems { get; set; } = 40;
     public bool AutoStart { get; set; }
+    public bool PasteAsKeyboardInput { get; set; }
 
     /// <summary>True: popup follows the cursor. False: use the dragged, saved position.</summary>
     public bool PopupFollowCursor { get; set; } = true;

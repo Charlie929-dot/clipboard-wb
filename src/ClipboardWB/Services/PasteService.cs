@@ -52,6 +52,96 @@ internal sealed class PasteService
             Failed?.Invoke("模拟粘贴失败：目标窗口可能以管理员权限运行");
     }
 
+    private bool _typing;
+
+    /// <summary>Inject Unicode text after modifiers are released. Never change the clipboard.</summary>
+    public async Task<bool> TypeTextAsync(string text, IntPtr target)
+    {
+        if (_typing)
+        {
+            Failed?.Invoke("键盘输入正在进行，请稍后再试");
+            return false;
+        }
+        if (target == IntPtr.Zero)
+        {
+            Failed?.Invoke("无法确定输入窗口");
+            return false;
+        }
+        _typing = true;
+        try
+        {
+            // Give the hook time to return and wait for the user's physical Ctrl,
+            // Shift, Alt and Win keys. Releasing them artificially leaves the real
+            // keyboard state inconsistent and can trigger shortcuts.
+            var deadline = Environment.TickCount64 + 10000;
+            await Task.Delay(20);
+            while (ModifiersDown())
+            {
+                if (NativeMethods.GetForegroundWindow() != target)
+                {
+                    Failed?.Invoke("输入已取消：目标窗口发生变化");
+                    return false;
+                }
+                if (Environment.TickCount64 >= deadline)
+                {
+                    Failed?.Invoke("输入已取消：请先松开 Ctrl 等修饰键");
+                    return false;
+                }
+                await Task.Delay(20);
+            }
+
+            // Unicode carriage returns are ignored by common controls. Emit a
+            // real Enter keystroke for each normalized line break instead.
+            text = text.Replace("\r\n", "\n").Replace('\r', '\n');
+            for (int offset = 0; offset < text.Length;)
+            {
+                if (NativeMethods.GetForegroundWindow() != target || ModifiersDown())
+                {
+                    Failed?.Invoke("输入已中断：窗口或修饰键状态发生变化，内容可能只输入了一部分");
+                    return false;
+                }
+                int count = Math.Min(64, text.Length - offset);
+                // Keep a surrogate pair in the same SendInput batch.
+                if (offset + count < text.Length && char.IsHighSurrogate(text[offset + count - 1])
+                    && char.IsLowSurrogate(text[offset + count])) count--;
+                var inputs = new NativeMethods.INPUT[count * 2];
+                for (int i = 0; i < count; i++)
+                {
+                    ushort code = text[offset + i];
+                    inputs[i * 2] = code == '\n' ? NativeMethods.MarkedKey(NativeMethods.VK_RETURN, false) : UnicodeKey(code, false);
+                    inputs[i * 2 + 1] = code == '\n' ? NativeMethods.MarkedKey(NativeMethods.VK_RETURN, true) : UnicodeKey(code, true);
+                }
+                uint sent = NativeMethods.SendInput((uint)inputs.Length, inputs, Marshal.SizeOf<NativeMethods.INPUT>());
+                if (sent != inputs.Length)
+                {
+                    Failed?.Invoke("模拟键盘输入失败，内容可能只输入了一部分；目标窗口可能以管理员权限运行");
+                    return false;
+                }
+                offset += count;
+                if (offset < text.Length) await Task.Delay(1);
+            }
+            return true;
+        }
+        finally { _typing = false; }
+    }
+
+    private static NativeMethods.INPUT UnicodeKey(ushort code, bool up) => new()
+    {
+        type = NativeMethods.INPUT_KEYBOARD,
+        ki = new NativeMethods.KEYBDINPUT
+        {
+            wScan = code,
+            dwFlags = NativeMethods.KEYEVENTF_UNICODE | (up ? NativeMethods.KEYEVENTF_KEYUP : 0),
+            dwExtraInfo = NativeMethods.SendMagic
+        }
+    };
+
+    private static bool ModifiersDown() => new[]
+    {
+        NativeMethods.VK_CONTROL, NativeMethods.VK_SHIFT, NativeMethods.VK_MENU,
+        NativeMethods.VK_LWIN, NativeMethods.VK_RWIN
+    }.Any(key => (NativeMethods.GetAsyncKeyState(key) & 0x8000) != 0);
+
     /// <summary>
     /// Decide whether a window must be restored to the foreground before pasting.
     /// Returns null when the live foreground window is already a valid target —

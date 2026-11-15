@@ -155,7 +155,8 @@ public partial class App : System.Windows.Application
         _hook = new KeyboardHook
         {
             Interceptor = OnKey,
-            PickerOpen = () => _popup?.IsOpen == true
+            PickerOpen = () => _popup?.IsOpen == true,
+            HandleTap = HandleKeyboardPasteTap
         };
         string? keyLog = Environment.GetEnvironmentVariable("CLIPBOARDWB_KEYLOG");
         if (!string.IsNullOrEmpty(keyLog))
@@ -269,7 +270,36 @@ public partial class App : System.Windows.Application
         RestartAutoHide();
     }
 
-    private void PasteSelected()
+    private bool HandleKeyboardPasteTap()
+    {
+        if (!_settings.PasteAsKeyboardInput || _settingsWindow is { IsVisible: true } || _paste is null)
+            return false;
+        IntPtr target = NativeMethods.GetForegroundWindow();
+        Dispatcher.BeginInvoke(new Action(async () =>
+        {
+            if (NativeMethods.GetForegroundWindow() != target) return;
+            try
+            {
+                if (!System.Windows.Clipboard.ContainsFileDropList() && !System.Windows.Clipboard.ContainsImage()
+                    && System.Windows.Clipboard.ContainsText(TextDataFormat.UnicodeText))
+                {
+                    string text = System.Windows.Clipboard.GetText(TextDataFormat.UnicodeText);
+                    await _paste.TypeTextAsync(text, target);
+                    return;
+                }
+                // Preserve native handling for images, files, and unsupported formats.
+                bool ctrl = (NativeMethods.GetAsyncKeyState(NativeMethods.VK_CONTROL) & 0x8000) != 0;
+                _hook?.SendNativePaste(ctrl);
+            }
+            catch (Exception)
+            {
+                _tray?.Notify("ClipboardWB", "读取剪贴板失败，请重试", warning: true);
+            }
+        }));
+        return true;
+    }
+
+    private async void PasteSelected()
     {
         if (_popup is null || _store is null || _paste is null || _monitor is null) return;
         _autoHide?.Stop();
@@ -284,6 +314,18 @@ public partial class App : System.Windows.Application
 
         var item = _store.Items.ElementAtOrDefault(Math.Clamp(_selected, 0, Math.Max(0, _store.Items.Count - 1)));
         if (item is null) return;
+
+        if (_settings.PasteAsKeyboardInput && item.Kind == ClipEntryKind.Text)
+        {
+            if (PasteService.WindowToActivate(foreground, _anchorWindow, popupWindow) is { } hwnd)
+            {
+                NativeMethods.SetForegroundWindow(hwnd);
+                foreground = hwnd;
+            }
+            if (await _paste.TypeTextAsync(item.Text ?? string.Empty, foreground))
+                _store.MoveToFront(item);
+            return;
+        }
 
         if (_hook is not null)
         {

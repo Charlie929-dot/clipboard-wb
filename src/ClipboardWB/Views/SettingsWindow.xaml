@@ -113,6 +113,23 @@
 
                     <Border Height="1" Background="{StaticResource GlassBorder}" Margin="0,16,0,14" />
 
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="文本模拟键盘输入" FontFamily="{StaticResource UiFont}" FontSize="12.5"
+                                       Foreground="{StaticResource TextPrimary}" />
+                            <TextBlock Text="文本模拟输入；换行发送回车，可能触发提交" Margin="0,3,0,0"
+                                       FontFamily="{StaticResource UiFont}" FontSize="10.5"
+                                       Foreground="{StaticResource TextMuted}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <CheckBox x:Name="KeyboardInputBox" Grid.Column="1" Style="{StaticResource Switch}"
+                                  VerticalAlignment="Center" Click="KeyboardInput_Click" />
+                    </Grid>
+                    <Border Height="1" Background="{StaticResource GlassBorder}" Margin="0,16,0,14" />
+
                     <!-- hotkey reference -->
                     <TextBlock Text="操作方式" FontFamily="{StaticResource UiFont}" FontSize="12.5"
                                Foreground="{StaticResource TextPrimary}" />
@@ -130,7 +147,7 @@
                         </Grid.RowDefinitions>
                         <TextBlock Grid.Row="0" Text="轻按 Ctrl+V" FontFamily="{StaticResource UiFont}"
                                    FontSize="11.5" Foreground="{StaticResource Accent}" Margin="0,0,0,7" />
-                        <TextBlock Grid.Row="0" Grid.Column="1" Text="原生粘贴，和平时完全一样" Style="{StaticResource HintText}" Margin="0,0,0,7" />
+                        <TextBlock Grid.Row="0" Grid.Column="1" Text="按当前设置粘贴，不弹面板" Style="{StaticResource HintText}" Margin="0,0,0,7" />
                         <TextBlock Grid.Row="1" Text="长按 Ctrl+V" FontFamily="{StaticResource UiFont}"
                                    FontSize="11.5" Foreground="{StaticResource Accent}" Margin="0,0,0,7" />
                         <TextBlock Grid.Row="1" Grid.Column="1" Text="约 180 ms 后唤出历史面板" Style="{StaticResource HintText}" Margin="0,0,0,7" />

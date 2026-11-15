@@ -35,6 +35,7 @@ internal partial class SettingsWindow : Window
             MaxValue.Text = _settings.MaxItems + " 条";
             AutoStartBox.IsChecked = _settings.AutoStart;
             FollowCursorBox.IsChecked = _settings.PopupFollowCursor;
+            KeyboardInputBox.IsChecked = _settings.PasteAsKeyboardInput;
             _ready = true;
 
             var grid = (Grid)Content;
@@ -106,6 +107,14 @@ internal partial class SettingsWindow : Window
         }
         _settings.Save();
         Status(_settings.PopupFollowCursor ? "面板将跟随鼠标" : "拖动面板标题栏可固定位置");
+    }
+
+    private void KeyboardInput_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_ready) return;
+        _settings.PasteAsKeyboardInput = KeyboardInputBox.IsChecked == true;
+        _settings.Save();
+        Status(_settings.PasteAsKeyboardInput ? "文本将模拟键盘输入" : "已恢复普通粘贴");
     }
 
     private void Clear_Click(object sender, RoutedEventArgs e)

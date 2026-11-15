@@ -47,6 +47,9 @@ internal sealed class KeyboardHook : IDisposable
     /// <summary>True while the picker is open; plain V/Ctrl+V then mean "paste selection".</summary>
     public Func<bool>? PickerOpen { get; set; }
 
+    /// <summary>Optionally handles a short Ctrl+V; return false for native replay.</summary>
+    public Func<bool>? HandleTap { get; set; }
+
     /// <summary>Global safety switch used while we synthesize our own Ctrl+V.</summary>
     public bool Suppress { get; set; }
 
@@ -175,12 +178,12 @@ internal sealed class KeyboardHook : IDisposable
 
         bool doReplay = replay && finished == Phase.Pending;
         Log($"V up -> phase={finished}, replay={doReplay}");
-        if (doReplay) SendNativePaste(ctrlHeld); // tap: replay the paste we held back
+        if (doReplay && HandleTap?.Invoke() != true) SendNativePaste(ctrlHeld);
         return finished;
     }
 
     /// <summary>Replay the swallowed Ctrl+V so the foreground app performs its own native paste.</summary>
-    private void SendNativePaste(bool ctrlHeld)
+    internal void SendNativePaste(bool ctrlHeld)
     {
         var keys = new List<NativeMethods.INPUT>(4);
         if (!ctrlHeld) keys.Add(NativeMethods.MarkedKey(NativeMethods.VK_CONTROL, false));

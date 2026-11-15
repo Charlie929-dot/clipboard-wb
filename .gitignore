@@ -4,6 +4,9 @@
 [Dd]ist/
 [Dd]ist-fx/
 [Dd]ist-sc/
+[Dd]ist-keyboard/
+[Dd]ist-installer/
+release/
 *.user
 *.suo
 .vs/

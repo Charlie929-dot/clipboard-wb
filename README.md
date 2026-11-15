@@ -4,6 +4,12 @@
 
 界面是暗色玻璃卡片：渐入缩放动画、选中项平滑高亮、像素级平滑滚动（`↑` / `↓` / 数字直达会自动把选中行滚进视野）、亚克力质感的托盘菜单与设置窗口。**置顶项固定在列表最前**；面板标题栏可拖动，位置会被记住（设置里可切回跟随鼠标）；设置窗口内容支持鼠标滚轮，小屏也能看全。
 
+## 安装
+
+从 GitHub Releases 下载 `ClipboardWB-Setup-1.3.0-win-x64.exe`，退出正在运行的旧版后运行安装程序。安装包适用于 64 位 Windows，包含 .NET 运行时，无需单独安装 .NET；默认安装到当前用户的 `%LOCALAPPDATA%\Programs\ClipboardWB`。安装后可从开始菜单启动，也可在 Windows 的应用设置中卸载。卸载不会删除剪贴板历史和设置。
+
+安装包未经数字签名，Windows 可能显示 SmartScreen 提示。源码构建安装包需要 .NET 10 SDK 和 Inno Setup 6 或 7：运行 `build-installer.bat`，结果位于 `release\`。
+
 ## 快速开始
 
 ```bat
@@ -27,7 +33,7 @@ src\ClipboardWB\bin\Debug\net10.0-windows\ClipboardWB.exe
 
 | 按键 | 作用 |
 | --- | --- |
-| **轻按 `Ctrl+V`** | 原生粘贴，与系统默认行为一致，**不弹面板** |
+| **轻按 `Ctrl+V`** | 默认原生粘贴；可在设置中启用文本模拟键盘输入，**不弹面板** |
 | **长按 `Ctrl+V`** | 按住约 180 ms 唤出历史面板，默认选中最新一条 |
 | `↑` / `↓` | 在历史中循环移动选择（自动滚动到可见区域） |
 | `V` / `Enter` | 粘贴选中项（面板打开时，`Ctrl` 按住或松开都可以） |
@@ -38,6 +44,8 @@ src\ClipboardWB\bin\Debug\net10.0-windows\ClipboardWB.exe
 | 拖动面板标题栏 | 自定义面板位置并自动记住（设置里可改回「跟随鼠标」） |
 
 - **粘贴到「确认选择那一刻有焦点」的窗口**：面板是无焦点窗口，打开后你可以先切到另一个程序再选，内容会粘到新窗口，不会跑回打开面板的那个窗口。
+- 设置 → 「文本模拟键盘输入」：默认关闭。开启后，轻按 Ctrl+V 和选择历史文本时会通过 Unicode 键盘事件输入文本，不覆盖剪贴板；图片和文件仍使用普通粘贴。程序会等待 Ctrl、Shift、Alt 和 Win 键松开，输入期间如果前台窗口或修饰键状态变化会中断，可能只输入一部分。
+- 模拟输入的换行会发送真实的 Enter 按键，可能触发聊天或表单提交；开启前请确认目标应用对 Enter 的处理。部分程序不接受 Unicode 注入事件，此时请关闭该选项使用普通粘贴。
 - 置顶项永远排在非置顶项之前：新复制的内容插在「置顶区」之后，粘贴过的条目也只会在非置顶区内前移。
 - 判定阈值是 `KeyboardHook.HoldMilliseconds`（默认 180 ms）；短按不会弹面板，长按也不会误粘贴。
 - 设置 → 「面板跟随鼠标」：关闭后拖动标题栏即可固定位置；重新开启会恢复跟随鼠标并清掉记住的坐标。
@@ -52,7 +60,7 @@ src\ClipboardWB\bin\Debug\net10.0-windows\ClipboardWB.exe
 | --- | --- | --- |
 | 全局热键 | `Services/KeyboardHook.cs` | `WH_KEYBOARD_LL` 低层钩子；扣住 `Ctrl+V` 的 `V` keydown，短按在松键时补发一次带 magic 标记的原生 `Ctrl+V`，长按 180 ms 用 `DispatcherTimer` 唤出面板（排队到下一轮消息循环，不阻塞钩子）；`Win+V`、`Ctrl+Shift+V`、普通字母 `v` 全部放行 |
 | 剪贴板监听 | `Services/ClipboardMonitor.cs` | 轮询 `GetClipboardSequenceNumber`，避开剪贴板查看器链；文本 / 图片 / 文件分别读取并做 SHA-256 去重 |
-| 粘贴 | `Services/PasteService.cs` + `App.xaml.cs` | 在用户确认选择时读取 `GetForegroundWindow()` 作为粘贴目标，回写剪贴板后用 `SendInput` 模拟 `Ctrl+V`；**不再激活打开面板时记录的窗口**（旧行为会把焦点拉回原窗口），仅当前台窗口为空或落在自己面板上时才用该锚点兜底；注入的按键带 magic 标记，钩子自动放行 |
+| 粘贴 | `Services/PasteService.cs` + `App.xaml.cs` | 默认回写剪贴板并模拟 `Ctrl+V`；可选文本通过 `SendInput` 发送 Unicode 键盘事件、换行发送 Enter，输入前等待修饰键松开并检查前台窗口；图片和文件仍普通粘贴 |
 | 历史存储 | `Services/HistoryStore.cs` | `ObservableCollection` + 防抖 JSON 持久化；图片单独存 PNG；新增 / 去重 / 粘贴 / 切换置顶 / 加载都维护「pinned 前缀」不变式，置顶项不参与容量淘汰 |
 | 弹窗 | `Views/HistoryWindow.xaml` | `ShowActivated=False` + `WS_EX_NOACTIVATE` + `WS_EX_TOOLWINDOW`，按光标或记住的位置定位并做工作区收敛；标题栏用物理光标坐标拖动（header 必须 `Background=Transparent` 才能命中空白区域），松手后写入 `settings.json` |
 | 键盘滚动 | `Views/HistoryWindow.xaml.cs`、`Views/SmoothScrollViewer.cs` | 按选中行的实测位置算出目标偏移，再用 `CompositionTarget.Rendering` 缓动滚动；不依赖 `ScrollIntoView`（无焦点窗口 + 物理滚动下它不生效） |
@@ -109,7 +117,7 @@ python scripts\cross_window_e2e.py
 ```
 %APPDATA%\ClipboardWB\history.json     历史记录
 %APPDATA%\ClipboardWB\images\          图片条目
-%APPDATA%\ClipboardWB\settings.json    容量、开机自启、面板跟随鼠标 / 固定位置
+%APPDATA%\ClipboardWB\settings.json    容量、开机自启、面板位置、文本模拟键盘输入
 HKCU\...\CurrentVersion\Run\ClipboardWB  开机启动项
 ```
 
@@ -131,3 +139,4 @@ HKCU\...\CurrentVersion\Run\ClipboardWB  开机启动项
 - `v1.1.0` 交互改为「轻按原生粘贴 / 长按 180 ms 唤出历史」
 - `v1.2.0` 置顶项固定最前、设置窗口可滚动、面板可拖动并记住位置
 - `v1.2.1` 修复跨窗口粘贴：内容跟随确认选择时的焦点窗口，不再跑回打开面板的窗口
+- `v1.3.0` 可选文本模拟键盘输入，提供 Windows x64 安装包

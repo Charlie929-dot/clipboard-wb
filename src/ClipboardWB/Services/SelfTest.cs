@@ -146,6 +146,44 @@ internal static class SelfTest
             return window is not null;
         });
 
+        if (Environment.GetEnvironmentVariable("CLIPBOARDWB_TEST_INPUT") == "1")
+        Check("Unicode keyboard input reaches a focused text box", () =>
+        {
+            var input = new System.Windows.Controls.TextBox { AcceptsReturn = true };
+            var window = new System.Windows.Window { Content = input, Width = 360, Height = 180,
+                Title = "ClipboardWB keyboard input test", Topmost = true,
+                WindowStartupLocation = WindowStartupLocation.CenterScreen, ShowInTaskbar = false };
+            try
+            {
+                window.Show();
+                window.Activate();
+                input.Focus();
+                var handle = new System.Windows.Interop.WindowInteropHelper(window).Handle;
+                if (NativeMethods.GetForegroundWindow() != handle) return false;
+                var service = new PasteService();
+                string sample = "ABC中文😀\r\n下一行";
+                Task<bool> task = service.TypeTextAsync(sample, handle);
+                var frame = new System.Windows.Threading.DispatcherFrame();
+                var timer = new System.Windows.Threading.DispatcherTimer
+                    { Interval = TimeSpan.FromMilliseconds(20) };
+                long until = Environment.TickCount64 + 3000;
+                timer.Tick += (_, _) =>
+                {
+                    if ((task.IsCompleted && input.Text.Contains("下一行")) || Environment.TickCount64 >= until)
+                    {
+                        timer.Stop();
+                        frame.Continue = false;
+                    }
+                };
+                timer.Start();
+                System.Windows.Threading.Dispatcher.PushFrame(frame);
+                lines.Add($"INFO  Unicode input actual: {input.Text.Replace("\r", "\\r").Replace("\n", "\\n")}");
+                return task.IsCompletedSuccessfully && task.Result
+                    && input.Text.Replace("\r\n", "\n").Replace('\r', '\n') == sample.Replace("\r\n", "\n");
+            }
+            finally { window.Close(); }
+        });
+
         // A paste must land in the window focused when the user confirms the
         // selection, not in the window that happened to open the picker.
         Check("paste target follows the live foreground window", () =>
@@ -168,15 +206,15 @@ internal static class SelfTest
             try
             {
                 AppSettings.OverrideDirectory = root;
-                new AppSettings { PopupFollowCursor = false, PopupX = 321.5, PopupY = 654.25 }.Save();
+                new AppSettings { PopupFollowCursor = false, PopupX = 321.5, PopupY = 654.25, PasteAsKeyboardInput = true }.Save();
                 var loaded = AppSettings.Load();
-                bool saved = !loaded.PopupFollowCursor
+                bool saved = !loaded.PopupFollowCursor && loaded.PasteAsKeyboardInput
                              && loaded.PopupX == 321.5 && loaded.PopupY == 654.25;
 
                 // Config files written by older versions simply lack the new keys.
                 File.WriteAllText(Path.Combine(root, "settings.json"), "{\"MaxItems\":40}");
                 var legacy = AppSettings.Load();
-                return saved && legacy.PopupFollowCursor && legacy.PopupX is null;
+                return saved && legacy.PopupFollowCursor && legacy.PopupX is null && !legacy.PasteAsKeyboardInput;
             }
             finally
             {

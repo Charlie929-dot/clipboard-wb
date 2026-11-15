@@ -34,6 +34,7 @@ internal static class NativeMethods
     public const int VK_V = 0x56;
 
     public const uint KEYEVENTF_KEYUP = 0x0002;
+    public const uint KEYEVENTF_UNICODE = 0x0004;
     public const uint INPUT_KEYBOARD = 1;
 
     public const int GWL_EXSTYLE = -20;
